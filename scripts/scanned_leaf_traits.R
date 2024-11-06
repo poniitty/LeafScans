@@ -24,7 +24,7 @@ scan_path <- "/scratch/project_2007415/leaf_scans/2024"
 
 imgs <- list.files(scan_path, pattern = ".jpg$", full.names = TRUE, recursive = TRUE)
 
-for(i in imgs){
+for(i in sample(imgs)){
   # i <- imgs[1]
   # i <- imgs[30]
   # i <- imgs[3]
@@ -35,7 +35,7 @@ for(i in imgs){
   if(!file.exists(gsub(".jpg",".csv",i))){
     # i <- imgs[5]
     r <- rast(i)
-    plot(r)
+    # plot(r)
     names(r) <- c("R","G","B")
     
     # Get resolution from meta data
@@ -260,7 +260,7 @@ for(i in imgs){
     # Centerline & widths -----------
     
     shps <- lapply(seq_len(nrow(polf)), function(ii){
-      
+      # ii <- 3
       pt <- polf %>% slice(ii)
       
       points <- st_coordinates(pt) %>% as.data.frame()
@@ -326,26 +326,22 @@ for(i in imgs){
         
       }) %>% bind_rows()
       
-      pls$wdth <- st_intersection(pls, pt) %>% st_length
+      wdths <- st_intersection(pls, pt) %>% st_length
+      wdths <- wdths*reso
+      med_wdths <- rollapply(wdths, width = 21, FUN=my_median, fill = NA, partial = FALSE, align = "center")
       
-      pls <- pls %>% 
-        mutate(wdth = wdth*reso) %>% 
-        mutate(med_wdth = rollapply(wdth, width = 21, FUN=my_median, fill = NA, partial = FALSE, align = "center"))
+      # plot(wdths)
+      # plot(med_wdths, col = "red")
       
-      # plot(pls$wdth)
-      # plot(pls$med_wdth, col = "red")
-      
-      st_length(cl)*reso
-      
-      plss <- pls %>% drop_na(med_wdth)
-      plss <- sample(seq_len(nrow(plss)), size = nrow(plss)*100, prob = plss$med_wdth, replace = TRUE)
+      plss <- na.omit(med_wdths) %>% as.numeric
+      plss <- sample(seq_len(length(plss)), size = length(plss)*100, prob = plss, replace = TRUE)
       
       ress <- tibble(id = ii,
                      length = st_length(cl)*reso,
-                     median_width = median(pls$med_wdth, na.rm = TRUE),
-                     mean_width = mean(pls$med_wdth, na.rm = TRUE),
-                     max_width = max(pls$med_wdth, na.rm = TRUE),
-                     widest_loc = abs(diff(c(0.5, which.max(pls$med_wdth)/nrow(pls)))),
+                     median_width = median(med_wdths, na.rm = TRUE),
+                     mean_width = mean(med_wdths, na.rm = TRUE),
+                     max_width = max(med_wdths, na.rm = TRUE),
+                     widest_loc = abs(diff(c(0.5, which.max(med_wdths)/length(med_wdths)))),
                      shape_skew = abs(skewness(plss)))
       
       rm(cl)
